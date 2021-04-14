@@ -61,8 +61,6 @@ public class JWKSTester {
     //openssl pkcs12 -export -out keyStore.p12 -inkey myKey.pem -in cert.pem -name "alias"
 
     private Certificate certificate;
-   // private PublicKey publicKey;
-    //private PrivateKey privateKey;
     private String alias;
     private String keyPass;
     private String jwksURL;
