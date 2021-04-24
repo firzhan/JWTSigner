@@ -1,12 +1,15 @@
 package au.com.trial.jwt;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSSigner;
+import com.nimbusds.jose.crypto.ECDSASigner;
 import com.nimbusds.jose.crypto.RSASSASigner;
+import com.nimbusds.jose.jwk.Curve;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.KeyUse;
 import com.nimbusds.jose.jwk.RSAKey;
@@ -68,6 +71,7 @@ public class JWKSTester {
     private String issuer;
     private String audience;
     private KeyPair keyPair;
+    private JWSAlgorithm algorithm;
 
     public JWKSTester(){
         try {
@@ -91,6 +95,7 @@ public class JWKSTester {
             this.issuer = prop.getProperty("issuer");
             this.audience = prop.getProperty("audience");
             this.subject = prop.getProperty("subject");
+            this.algorithm = JWSAlgorithm.parse(prop.getProperty("algo"));
             // get the property value and print it out
         } catch (IOException ex) {
             logger.error("Failed loading the config file", ex);
@@ -160,7 +165,7 @@ public class JWKSTester {
         return  new RSAKey.Builder((RSAPublicKey) this.keyPair.getPublic())
                 .privateKey(this.keyPair.getPrivate())
                 .keyUse(KeyUse.SIGNATURE)
-                .algorithm(JWSAlgorithm.PS256)
+                .algorithm(this.algorithm)
                 .x509CertChain(Collections.singletonList(Base64.encode(this.certificate.getEncoded())))
                 .x509CertSHA256Thumbprint(Base64URL.encode(sha256.digest(this.certificate.getEncoded())))
                 .keyID("keyId")
@@ -178,6 +183,7 @@ public class JWKSTester {
         // Create RSA-signer with the private key
         JWSSigner signer = new RSASSASigner(rsaKey);
 
+
         // Prepare JWT with claims set
         JWTClaimsSet claimsSet = new JWTClaimsSet.Builder()
                 .subject(this.subject)
@@ -189,7 +195,7 @@ public class JWKSTester {
                 .build();
 
         SignedJWT signedJWT = new SignedJWT(
-                new JWSHeader.Builder(JWSAlgorithm.PS256).keyID(rsaKey.getKeyID()).type(JOSEObjectType.JWT).build(),
+                new JWSHeader.Builder(this.algorithm).keyID(rsaKey.getKeyID()).type(JOSEObjectType.JWT).build(),
                 claimsSet);
 
         // Compute the RSA signature
@@ -230,12 +236,12 @@ public class JWKSTester {
                 new RemoteJWKSet<>(new URL(this.jwksURL)/*,
                         resourceRetriever*/);
         // The expected JWS algorithm of the access tokens (agreed out-of-band)
-        JWSAlgorithm expectedJWSAlg = JWSAlgorithm.PS256;
+        //JWSAlgorithm expectedJWSAlg = JWSAlgorithm.PS256;
 
         // Configure the JWT processor with a key selector to feed matching public
 // RSA keys sourced from the JWK set URL
         JWSKeySelector<SecurityContext> keySelector =
-                new JWSVerificationKeySelector<>(expectedJWSAlg, keySource);
+                new JWSVerificationKeySelector<>(this.algorithm, keySource);
 
         jwtProcessor.setJWSKeySelector(keySelector);
 
@@ -247,8 +253,9 @@ public class JWKSTester {
         // Process the token
         JWTClaimsSet claimsSet = jwtProcessor.process(jwtToken, null);
 
+        JsonElement claims = JsonParser.parseString(claimsSet.toJSONObject(false).toString());
         logger.info("Verified Claims: {}",
-                JsonParser.parseString(claimsSet.toJSONObject(false).toString()));
+                claims.toString());
 
     }
 
